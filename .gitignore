@@ -99,3 +99,7 @@ ENV/
 
 # mypy
 .mypy_cache/
+.idea
+
+resnet50_weights_tf_dim_ordering_tf_kernels.h5
+model_frcnn.hdf5
