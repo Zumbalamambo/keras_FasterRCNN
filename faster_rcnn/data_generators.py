@@ -77,8 +77,11 @@ class SampleSelector:
 
 def calc_rpn(C, img_data, width, height, resized_width, resized_height, img_length_calc_function):
     downscale = float(C.rpn_stride)
+    # the anchor size
     anchor_sizes = C.anchor_box_scales
+    # the anchor height:weight radio
     anchor_ratios = C.anchor_box_ratios
+    # the anchor nums
     num_anchors = len(anchor_sizes) * len(anchor_ratios)
 
     # calculate the output map size based on the network architecture
@@ -110,6 +113,7 @@ def calc_rpn(C, img_data, width, height, resized_width, resized_height, img_leng
         gta[bbox_num, 3] = bbox['y2'] * (resized_height / float(height))
 
     # rpn ground truth
+
 
     for anchor_size_idx in range(len(anchor_sizes)):
         for anchor_ratio_idx in range(n_anchratios):
@@ -144,7 +148,8 @@ def calc_rpn(C, img_data, width, height, resized_width, resized_height, img_leng
 
                     for bbox_num in range(num_bboxes):
 
-                        # get IOU of the current GT box and the current anchor box
+                        # get IOU of the current GT box and the current anchor box ， highest Intersection-overUnion (IoU)
+                        # overlap with a ground-truth box, or (ii) an anchor that has an IoU overlap higher than 0.7 with any ground-truth box
                         curr_iou = iou([gta[bbox_num, 0], gta[bbox_num, 2], gta[bbox_num, 1], gta[bbox_num, 3]],
                                        [x1_anc, y1_anc, x2_anc, y2_anc])
                         # calculate the regression targets if they will be needed

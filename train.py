@@ -3,7 +3,6 @@ import pprint
 import sys
 import time
 import numpy as np
-import pickle
 
 from keras import backend as K
 from keras.optimizers import Adam
@@ -19,37 +18,17 @@ from faster_rcnn import resnet as nn
 
 sys.setrecursionlimit(40000)
 
-options = {
-    "train_path": './traindataset.txt',
-    "horizontal_flips": False,
-    "vertical_flips": False,
-    "rot_90": False,
-    "num_epochs": 1000,
-    "config_filename": 'config.pickle',
-    "output_weight_path": './model_frcnn.hdf5',
-    "input_weight_path": './resnet50_weights_tf_dim_ordering_tf_kernels.h5',
-    "num_rois": '10'
-}
+# the epochs to train
+num_epochs = 1000
+epoch_length = 1000
+# get config file
+c = config.Config()
 
-# pass the settings from the command line, and persist them in the config object
-C = config.Config()
-
-C.use_horizontal_flips = bool(options["horizontal_flips"])
-C.use_vertical_flips = bool(options["vertical_flips"])
-C.rot_90 = bool(options["rot_90"])
-
-C.model_path = options["output_weight_path"]
-C.num_rois = int(options["num_rois"])
-C.network = 'resnet50'
-C.base_net_weights = options["input_weight_path"]
-
-all_imgs, classes_count, class_mapping = get_data(options["train_path"])
+all_imgs, classes_count, class_mapping = get_data(c.train_path)
 
 if 'bg' not in classes_count:
     classes_count['bg'] = 0
     class_mapping['bg'] = len(class_mapping)
-
-C.class_mapping = class_mapping
 
 inv_map = {v: k for k, v in class_mapping.items()}
 
@@ -57,26 +36,19 @@ print('Training images per class:')
 pprint.pprint(classes_count)
 print('Num classes (including bg) = {}'.format(len(classes_count)))
 
-config_output_filename = options["config_filename"]
-
-with open(config_output_filename, 'wb') as config_f:
-    pickle.dump(C, config_f)
-    print('Config has been written to {}, and can be loaded when testing to ensure correct results'.format(
-        config_output_filename))
-
 random.shuffle(all_imgs)
 
 num_imgs = len(all_imgs)
-
+# split training dataset and testing dataset
 train_imgs = [s for s in all_imgs if s['imageset'] == 'trainval']
 val_imgs = [s for s in all_imgs if s['imageset'] == 'test']
 
 print('Num train samples {}'.format(len(train_imgs)))
 print('Num val samples {}'.format(len(val_imgs)))
 
-data_gen_train = data_generators.get_anchor_gt(train_imgs, classes_count, C, nn.get_img_output_length,
+data_gen_train = data_generators.get_anchor_gt(train_imgs, classes_count, c, nn.get_img_output_length,
                                                K.image_dim_ordering(), mode='train')
-data_gen_val = data_generators.get_anchor_gt(val_imgs, classes_count, C, nn.get_img_output_length,
+data_gen_val = data_generators.get_anchor_gt(val_imgs, classes_count, c, nn.get_img_output_length,
                                              K.image_dim_ordering(), mode='val')
 
 input_shape_img = (None, None, 3)
@@ -88,10 +60,10 @@ roi_input = Input(shape=(None, 4))
 shared_layers = nn.nn_base(img_input, trainable=True)
 
 # define the RPN, built on the base layers
-num_anchors = len(C.anchor_box_scales) * len(C.anchor_box_ratios)
+num_anchors = len(c.anchor_box_scales) * len(c.anchor_box_ratios)
 rpn = nn.rpn(shared_layers, num_anchors)
 
-classifier = nn.classifier(shared_layers, roi_input, C.num_rois, nb_classes=len(classes_count), trainable=True)
+classifier = nn.classifier(shared_layers, roi_input, c.num_rois, nb_classes=len(classes_count), trainable=True)
 
 model_rpn = Model(img_input, rpn[:2])
 model_classifier = Model([img_input, roi_input], classifier)
@@ -100,9 +72,9 @@ model_classifier = Model([img_input, roi_input], classifier)
 model_all = Model([img_input, roi_input], rpn[:2] + classifier)
 
 try:
-    print('loading weights from {}'.format(C.base_net_weights))
-    model_rpn.load_weights(C.base_net_weights, by_name=True)
-    model_classifier.load_weights(C.base_net_weights, by_name=True)
+    print('loading weights from {}'.format(c.input_weight_path))
+    model_rpn.load_weights(c.input_weight_path, by_name=True)
+    model_classifier.load_weights(c.input_weight_path, by_name=True)
 except:
     print('Could not load pretrained model weights. Weights can be found in the keras application folder \
 		https://github.com/fchollet/keras/tree/master/keras/applications')
@@ -115,8 +87,6 @@ model_classifier.compile(optimizer=optimizer_classifier,
                          metrics={'dense_class_{}'.format(len(classes_count)): 'accuracy'})
 model_all.compile(optimizer='sgd', loss='mae')
 
-epoch_length = 1000
-num_epochs = int(options["num_epochs"])
 iter_num = 0
 
 losses = np.zeros((epoch_length, 5))
@@ -139,7 +109,7 @@ for epoch_num in range(num_epochs):
     while True:
         try:
 
-            if len(rpn_accuracy_rpn_monitor) == epoch_length and C.verbose:
+            if len(rpn_accuracy_rpn_monitor) == epoch_length and c.verbose:
                 mean_overlapping_bboxes = float(sum(rpn_accuracy_rpn_monitor)) / len(rpn_accuracy_rpn_monitor)
                 rpn_accuracy_rpn_monitor = []
                 print('Average number of overlapping bounding boxes from RPN = {} for {} previous iterations'.format(
@@ -154,10 +124,11 @@ for epoch_num in range(num_epochs):
 
             P_rpn = model_rpn.predict_on_batch(X)
 
-            R = roi_helpers.rpn_to_roi(P_rpn[0], P_rpn[1], C, K.image_dim_ordering(), use_regr=True, overlap_thresh=0.7,
+            R = roi_helpers.rpn_to_roi(P_rpn[0], P_rpn[1], c, K.image_dim_ordering(), use_regr=True, overlap_thresh=0.7,
                                        max_boxes=300)
             # note: calc_iou converts from (x1,y1,x2,y2) to (x,y,w,h) format
-            X2, Y1, Y2, IouS = roi_helpers.calc_iou(R, img_data, C, class_mapping)
+            # outputs from rpn need to calculate iou remove overlapping boxes
+            X2, Y1, Y2, IouS = roi_helpers.calc_iou(R, img_data, c, class_mapping)
 
             if X2 is None:
                 rpn_accuracy_rpn_monitor.append(0)
@@ -180,16 +151,17 @@ for epoch_num in range(num_epochs):
             rpn_accuracy_rpn_monitor.append(len(pos_samples))
             rpn_accuracy_for_epoch.append((len(pos_samples)))
 
-            if C.num_rois > 1:
-                if len(pos_samples) < C.num_rois // 2:
+            if c.num_rois > 1:
+                #  ???????
+                if len(pos_samples) < c.num_rois // 2:
                     selected_pos_samples = pos_samples.tolist()
                 else:
-                    selected_pos_samples = np.random.choice(pos_samples, C.num_rois // 2, replace=False).tolist()
+                    selected_pos_samples = np.random.choice(pos_samples, c.num_rois // 2, replace=False).tolist()
                 try:
-                    selected_neg_samples = np.random.choice(neg_samples, C.num_rois - len(selected_pos_samples),
+                    selected_neg_samples = np.random.choice(neg_samples, c.num_rois - len(selected_pos_samples),
                                                             replace=False).tolist()
                 except:
-                    selected_neg_samples = np.random.choice(neg_samples, C.num_rois - len(selected_pos_samples),
+                    selected_neg_samples = np.random.choice(neg_samples, c.num_rois - len(selected_pos_samples),
                                                             replace=True).tolist()
 
                 sel_samples = selected_pos_samples + selected_neg_samples
@@ -229,7 +201,7 @@ for epoch_num in range(num_epochs):
                 mean_overlapping_bboxes = float(sum(rpn_accuracy_for_epoch)) / len(rpn_accuracy_for_epoch)
                 rpn_accuracy_for_epoch = []
 
-                if C.verbose:
+                if c.verbose:
                     print('Mean number of bounding boxes from RPN overlapping ground truth boxes: {}'.format(
                         mean_overlapping_bboxes))
                     print('Classifier accuracy for bounding boxes from RPN: {}'.format(class_acc))
@@ -244,10 +216,10 @@ for epoch_num in range(num_epochs):
                 start_time = time.time()
 
                 if curr_loss < best_loss:
-                    if C.verbose:
+                    if c.verbose:
                         print('Total loss decreased from {} to {}, saving weights'.format(best_loss, curr_loss))
                     best_loss = curr_loss
-                    model_all.save_weights(C.model_path)
+                    model_all.save_weights(c.model_path)
 
                 break
 
