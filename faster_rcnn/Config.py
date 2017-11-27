@@ -2,10 +2,9 @@ import math
 
 
 class Config:
-    def __init__(self):
+    def __init__(self) -> object:
         self.verbose = True
         self.network = 'resnet50'
-
         # setting for data augmentation
         self.use_horizontal_flips = False
         self.use_vertical_flips = False
@@ -35,6 +34,8 @@ class Config:
         self.classifier_min_overlap = 0.1
         self.classifier_max_overlap = 0.5
         self.class_mapping = None
-        self.model_path = 'model_frcnn.vgg.hdf5'
+        self.model_path = './model_frcnn.hdf5'
         self.train_path = './traindataset.txt'
         self.input_weight_path = './resnet50_weights_tf_dim_ordering_tf_kernels.h5'
+
+        self.test_path='./test'
