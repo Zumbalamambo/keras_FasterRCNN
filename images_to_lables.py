@@ -4,20 +4,18 @@
 
 import xml.etree.ElementTree as ET
 import os
-from os import getcwd
 from optparse import OptionParser
 
 
 def get_classes_and_index(path):
     D = {}
-    f = open(path)
+    f = open(os.path.abspath(path))
     for line in f:
         temp = line.rstrip().split(',', 2)
         print("temp[0]:" + temp[0] + "\n")
         print("temp[1]:" + temp[1] + "\n")
         D[temp[1].replace(' ', '')] = temp[0]
     return D
-
 
 
 def convert(size, box):
@@ -35,7 +33,7 @@ def convert(size, box):
 
 
 def convert_annotation(path, image_id):
-    in_file = open('%s/annotations/%s.xml' % (path, image_id))
+    in_file = open('%s/%s.xml' % (os.path.abspath(path), image_id))
     tree = ET.parse(in_file)
     root = tree.getroot()
     size = root.find('size')
@@ -54,7 +52,7 @@ def convert_annotation(path, image_id):
 
 
 def convert_annotation_train(trainfile, imagedir, path, image_id):
-    in_file = open('%s/annotations/%s.xml' % (path, image_id))
+    in_file = open('%s/%s.xml' % (os.path.abspath(path), image_id))
     tree = ET.parse(in_file)
     root = tree.getroot()
     size = root.find('size')
@@ -87,7 +85,7 @@ def IsSubString(SubStrList, Str):
 def GetFileList(FindPath, FlagStr=[]):
     import os
     FileList = []
-    FileNames = os.listdir(FindPath)
+    FileNames = os.listdir(os.path.abspath(FindPath))
     if (len(FileNames) > 0):
         for fn in FileNames:
             if (len(FlagStr) > 0):
@@ -113,11 +111,11 @@ def get_dirs(time):
 
 parser = OptionParser()
 
-parser.add_option("-c", "--class", dest="class_path", help="Path to class in training data.", default='/class.txt')
+parser.add_option("-c", "--class", dest="class_path", help="Path to class in training data.", default='./class.txt')
 parser.add_option("-a", "--annotations", dest="annotations", help="your images' annotations created by voctool",
-                  default="/annotations")
+                  default="./annotations")
 parser.add_option("-i", "--images", dest="images", help="the training images",
-                  default="/images")
+                  default="./images")
 
 (options, args) = parser.parse_args()
 
@@ -130,13 +128,11 @@ if not options.annotations:  # if filename is not given
 if not options.images:  # if filename is not given
     parser.error('Error: path to training images data must be specified.')
 
-wd = getcwd()
-classes = get_classes_and_index(wd + options.class_path)
+classes = get_classes_and_index(options.class_path)
 trainfile = open('traindataset.txt', 'w')
 
-image_ids = GetFileList(wd + options.annotations, ['xml'])
-options.images = str.replace(options.images, '/', '\\')
+image_ids = GetFileList(options.annotations, ['xml'])
 for image_id in image_ids:
-    imagedir = '%s%s\%s.jpg' % (wd, options.images, image_id)
-    convert_annotation(wd, image_id)
-    convert_annotation_train(trainfile, imagedir, wd, image_id)
+    imagedir = '%s/%s.jpg' % (options.images, image_id)
+    convert_annotation(options.annotations, image_id)
+    convert_annotation_train(trainfile, imagedir, options.annotations, image_id)
