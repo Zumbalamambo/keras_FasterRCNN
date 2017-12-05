@@ -14,14 +14,8 @@ from faster_rcnn.image_parser import get_data
 sys.setrecursionlimit(40000)
 
 c = Config()
-
-if not c.test_path:  # if filename is not given
-    print('Error: path to test data must be specified. Pass --path to command line')
-
 c.network == 'resnet50'
 img_path = c.test_path
-
-
 def format_img_size(img, C):
     """ formats the image size based on config """
     img_min_side = float(C.im_size)
@@ -59,9 +53,11 @@ def format_img(img, C):
     return img, ratio
 
 
+
 # Method to transform the coordinates of the bounding box to its original size
 def get_real_coordinates(ratio, x1, y1, x2, y2):
     real_x1 = int(round(x1 // ratio))
+
     real_y1 = int(round(y1 // ratio))
     real_x2 = int(round(x2 // ratio))
     real_y2 = int(round(y2 // ratio))

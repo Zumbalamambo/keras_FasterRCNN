@@ -13,7 +13,8 @@ from faster_rcnn import data_generators
 from faster_rcnn import losses as losses
 import faster_rcnn.roi_helpers as roi_helpers
 from keras.utils import generic_utils
-from faster_rcnn.image_parser import get_data
+from faster_rcnn.pascal_voc_parser import get_data
+# from faster_rcnn.image_parser import get_data
 from faster_rcnn import resnet as nn
 
 sys.setrecursionlimit(40000)
